@@ -18,10 +18,8 @@ from contextlib import contextmanager
 from datetime import date
 from typing import Iterator
 
-import pandas as pd
 import snowflake.connector
 from snowflake.connector import SnowflakeConnection
-from snowflake.connector.pandas_tools import write_pandas
 
 from src.utils.config import settings, require
 
@@ -158,72 +156,6 @@ class SnowflakeLoader:
             inserted, len(rows) - inserted,
         )
         return inserted
-
-    def load_usajobs_historical_raw(
-        self,
-        records: list[dict],
-        source_year: int,
-    ) -> int:
-        """Bulk-load a batch of historical USAJobs rows into BRONZE.raw_usajobs_historical.
-
-        Each record dict (already normalised by USAJobsHistoricalExtractor) is
-        serialised to JSON and stored as a Snowflake VARIANT alongside its
-        position_id key. Uses write_pandas for fast staged bulk loading.
-
-        Returns the number of rows inserted.
-        """
-        if not records:
-            return 0
-
-        rows = []
-        for rec in records:
-            pid = str(rec.get("position_id") or "")
-            if not pid:
-                continue
-            rows.append(
-                {
-                    "POSITION_ID":  pid,
-                    "SOURCE_YEAR":  source_year,
-                    "RAW_DATA":     json.dumps(
-                        {k: (v.isoformat() if isinstance(v, date) else v)
-                         for k, v in rec.items()},
-                        default=str,
-                    ),
-                }
-            )
-
-        if not rows:
-            logger.warning("load_usajobs_historical_raw: no valid records to insert")
-            return 0
-
-        df = pd.DataFrame(rows)
-
-        with self._connect() as conn:
-            # Switch to BRONZE schema for this connection.
-            conn.cursor().execute(
-                f"USE SCHEMA {settings.SNOWFLAKE_DATABASE}.{settings.SNOWFLAKE_SCHEMA_BRONZE}"
-            )
-            # Deduplicate against existing rows via a temp table + MERGE.
-            # write_pandas stages & copies into a landing table; we then MERGE
-            # from the landing table so that re-runs are idempotent.
-            success, nchunks, nrows, _ = write_pandas(
-                conn,
-                df,
-                table_name="raw_usajobs_historical",
-                overwrite=False,
-                quote_identifiers=False,
-            )
-
-        if success:
-            logger.info(
-                "write_pandas loaded %d rows into BRONZE.raw_usajobs_historical "
-                "(year=%d, %d chunks)",
-                nrows, source_year, nchunks,
-            )
-        else:
-            logger.error("write_pandas failed for historical load year=%d", source_year)
-
-        return nrows or 0
 
     # ---------- util ----------
 
