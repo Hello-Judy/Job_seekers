@@ -1,7 +1,7 @@
 """
-Adzuna end-to-end DAG:
+USAJobs end-to-end DAG:
 
-    Adzuna API  →  BRONZE.raw_adzuna  →  SILVER.jobs_unified
+    USAJobs API  →  BRONZE.raw_usajobs_current  →  SILVER.jobs_unified
 
 Runs every 4 hours.  The final task declares SILVER_DATASET as an outlet,
 which automatically triggers silver_to_gold_star_schema whenever this DAG
@@ -18,40 +18,38 @@ from airflow.operators.python import PythonOperator
 
 sys.path.insert(0, "/opt/airflow")
 
-from src.extractors.adzuna import AdzunaExtractor                       # noqa: E402
-from src.loaders.snowflake_loader import SnowflakeLoader                 # noqa: E402
+from src.extractors.usajobs import USAJobsExtractor                      # noqa: E402
+from src.loaders.snowflake_loader import SnowflakeLoader                  # noqa: E402
 from src.transformers.bronze_to_silver import BronzeToSilverTransformer  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# Shared logical dataset — Silver jobs_unified table.
-# silver_to_gold_dag listens on this; it runs whenever either B→S DAG updates it.
 SILVER_DATASET = Dataset("snowflake://SILVER/jobs_unified")
 
-ADZUNA_QUERIES = [
-    "software engineer intern",
-    "data analyst entry level",
-    "junior developer",
-    "new grad software",
+USAJOBS_QUERIES = [
+    "software engineer",
+    "data analyst",
+    "IT specialist",
+    "program analyst",
 ]
 
 
-def extract_and_load_adzuna(**context) -> int:
-    extractor = AdzunaExtractor()
+def extract_and_load_usajobs(**context) -> int:
+    extractor = USAJobsExtractor()
     loader    = SnowflakeLoader()
     total = 0
-    for query in ADZUNA_QUERIES:
-        jobs   = extractor.search(query, max_pages=1, max_days_old=7)
-        loaded = loader.load_adzuna_raw(jobs, search_query=query)
+    for keyword in USAJOBS_QUERIES:
+        jobs   = extractor.search(keyword, max_pages=1, days_posted=7)
+        loaded = loader.load_usajobs_current_raw(jobs)
         total += loaded
-        logger.info("Query %r → %d jobs loaded to Bronze", query, loaded)
+        logger.info("Query %r → %d jobs loaded to Bronze", keyword, loaded)
     context["ti"].xcom_push(key="bronze_rows", value=total)
     return total
 
 
-def transform_adzuna_to_silver(**context) -> int:
+def transform_usajobs_to_silver(**context) -> int:
     transformer = BronzeToSilverTransformer()
-    affected    = transformer.transform_adzuna()
+    affected    = transformer.transform_usajobs()
     context["ti"].xcom_push(key="silver_rows", value=affected)
     return affected
 
@@ -64,23 +62,23 @@ default_args = {
 }
 
 with DAG(
-    dag_id="adzuna_bronze_silver_e2e",
-    description="Adzuna API → Bronze → Silver  (every 30 min)",
+    dag_id="usajobs_bronze_silver_e2e",
+    description="USAJobs API → Bronze → Silver  (every 30 min)",
     default_args=default_args,
-    start_date=datetime(2026, 4, 21),
+    start_date=datetime(2026, 4, 23),
     schedule="*/30 * * * *",  # every 30 minutes
     catchup=False,
-    tags=["jobseekers", "adzuna"],
+    tags=["jobseekers", "usajobs", "federal"],
 ) as dag:
 
     t1 = PythonOperator(
-        task_id="extract_load_adzuna_to_bronze",
-        python_callable=extract_and_load_adzuna,
+        task_id="extract_load_usajobs_to_bronze",
+        python_callable=extract_and_load_usajobs,
     )
 
     t2 = PythonOperator(
         task_id="transform_bronze_to_silver",
-        python_callable=transform_adzuna_to_silver,
+        python_callable=transform_usajobs_to_silver,
         outlets=[SILVER_DATASET],   # signals Silver was updated → triggers Gold DAG
     )
 
