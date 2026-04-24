@@ -1,0 +1,23 @@
+# Core
+python-dotenv==1.0.1
+requests==2.32.3
+pandas==2.2.3
+pyarrow==17.0.0
+
+# Snowflake
+snowflake-connector-python==3.12.3
+snowflake-sqlalchemy==1.6.1
+
+# PySpark (for transformations)
+pyspark==3.5.3
+
+# Airflow (matches the Docker image version we use)
+# Note: do NOT pip install airflow here; it's provided by the image.
+# We only list Airflow providers we need at DAG authoring time.
+
+# Visualization
+streamlit==1.39.0
+plotly==5.24.1
+
+# Dev / testing
+pytest==8.3.3

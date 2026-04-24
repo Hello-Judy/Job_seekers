@@ -1,0 +1,86 @@
+# Simplified Airflow 2.9 stack for local development.
+# Adapted from the official Airflow docker-compose reference:
+# https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html
+#
+# Start:    docker compose up -d
+# Stop:     docker compose down
+# Logs:     docker compose logs -f airflow-scheduler
+# UI:       http://localhost:8080   (user: airflow / pass: airflow)
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.3-python3.11
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
+    # Install our project dependencies into the Airflow image at runtime.
+    _PIP_ADDITIONAL_REQUIREMENTS: >-
+      snowflake-connector-python==3.12.3
+      pandas==2.2.3
+      pyarrow==17.0.0
+      requests==2.32.3
+      python-dotenv==1.0.1
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./sql:/opt/airflow/sql
+    - ./logs:/opt/airflow/logs
+    - ./.env:/opt/airflow/.env:ro
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username airflow --password airflow \
+          --firstname Air --lastname Flow \
+          --role Admin --email airflow@example.com || true
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-db-volume:
