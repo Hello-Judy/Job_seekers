@@ -1,36 +1,33 @@
 """
-Day 1 end-to-end DAG:
+Adzuna end-to-end DAG:
 
     Adzuna API  →  BRONZE.raw_adzuna  →  SILVER.jobs_unified
 
-Goal for the first run: prove the full plumbing works with a single query.
-Once this runs green, everything else is "add more sources and more queries."
+Runs every 4 hours.  The final task declares SILVER_DATASET as an outlet,
+which automatically triggers silver_to_gold_star_schema whenever this DAG
+produces new Silver rows (Airflow 2.4+ Dataset-aware scheduling).
 """
 from __future__ import annotations
 
 import logging
 import sys
 from datetime import datetime, timedelta
-from pathlib import Path
 
-from airflow import DAG
+from airflow import DAG, Dataset
 from airflow.operators.python import PythonOperator
 
-# Make our /opt/airflow/src importable inside the Airflow container.
-# (docker-compose.yml mounts ./src -> /opt/airflow/src)
 sys.path.insert(0, "/opt/airflow")
 
-from src.extractors.adzuna import AdzunaExtractor       # noqa: E402
-from src.loaders.snowflake_loader import SnowflakeLoader  # noqa: E402
+from src.extractors.adzuna import AdzunaExtractor                       # noqa: E402
+from src.loaders.snowflake_loader import SnowflakeLoader                 # noqa: E402
 from src.transformers.bronze_to_silver import BronzeToSilverTransformer  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+# Shared logical dataset — Silver jobs_unified table.
+# silver_to_gold_dag listens on this; it runs whenever either B→S DAG updates it.
+SILVER_DATASET = Dataset("snowflake://SILVER/jobs_unified")
 
-# ---- Task functions ------------------------------------------------------
-
-# The set of queries we pull. Entry-level focus per the project thesis.
-# Each call ≈ 1-2 Adzuna pages, staying well under free-tier quota.
 ADZUNA_QUERIES = [
     "software engineer intern",
     "data analyst entry level",
@@ -40,57 +37,51 @@ ADZUNA_QUERIES = [
 
 
 def extract_and_load_adzuna(**context) -> int:
-    """Pull each query from Adzuna and land raw JSON in Bronze."""
     extractor = AdzunaExtractor()
-    loader = SnowflakeLoader()
-
+    loader    = SnowflakeLoader()
     total = 0
     for query in ADZUNA_QUERIES:
-        jobs = extractor.search(query, max_pages=1, max_days_old=7)
+        jobs   = extractor.search(query, max_pages=1, max_days_old=7)
         loaded = loader.load_adzuna_raw(jobs, search_query=query)
         total += loaded
         logger.info("Query %r → %d jobs loaded to Bronze", query, loaded)
-
-    # Push to XCom so downstream task and UI both see how much we ingested.
     context["ti"].xcom_push(key="bronze_rows", value=total)
     return total
 
 
 def transform_adzuna_to_silver(**context) -> int:
-    """Run the MERGE from BRONZE.raw_adzuna into SILVER.jobs_unified."""
     transformer = BronzeToSilverTransformer()
-    affected = transformer.transform_adzuna()
+    affected    = transformer.transform_adzuna()
     context["ti"].xcom_push(key="silver_rows", value=affected)
     return affected
 
-
-# ---- DAG definition ------------------------------------------------------
 
 default_args = {
     "owner": "jobseekers",
     "depends_on_past": False,
     "retries": 1,
-    "retry_delay": timedelta(minutes=2),
+    "retry_delay": timedelta(minutes=5),
 }
 
 with DAG(
     dag_id="adzuna_bronze_silver_e2e",
-    description="Day 1 end-to-end: Adzuna API → Bronze → Silver",
+    description="Adzuna API → Bronze → Silver  (every 4 h)",
     default_args=default_args,
     start_date=datetime(2026, 4, 21),
-    schedule=None,       # manual trigger for now
+    schedule="0 */4 * * *",   # 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
     catchup=False,
-    tags=["jobseekers", "day-1", "adzuna"],
+    tags=["jobseekers", "adzuna"],
 ) as dag:
 
-    t1_extract_load = PythonOperator(
+    t1 = PythonOperator(
         task_id="extract_load_adzuna_to_bronze",
         python_callable=extract_and_load_adzuna,
     )
 
-    t2_transform = PythonOperator(
+    t2 = PythonOperator(
         task_id="transform_bronze_to_silver",
         python_callable=transform_adzuna_to_silver,
+        outlets=[SILVER_DATASET],   # signals Silver was updated → triggers Gold DAG
     )
 
-    t1_extract_load >> t2_transform
+    t1 >> t2
