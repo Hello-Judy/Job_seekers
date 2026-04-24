@@ -63,10 +63,10 @@ default_args = {
 
 with DAG(
     dag_id="usajobs_bronze_silver_e2e",
-    description="USAJobs API → Bronze → Silver  (every 4 h)",
+    description="USAJobs API → Bronze → Silver  (every 30 min)",
     default_args=default_args,
     start_date=datetime(2026, 4, 23),
-    schedule="0 */4 * * *",   # 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
+    schedule="*/30 * * * *",  # every 30 minutes
     catchup=False,
     tags=["jobseekers", "usajobs", "federal"],
 ) as dag:
