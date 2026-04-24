@@ -57,7 +57,7 @@ USING (
         'private'                                        AS sector,
 
         raw_data:title::STRING                           AS job_title,
-        LOWER(REGEXP_REPLACE(raw_data:title::STRING, '[^a-zA-Z0-9 ]', ''))
+        TRIM(REGEXP_REPLACE(LOWER(raw_data:title::STRING), '[^a-zA-Z0-9]+', ' '))
                                                          AS job_title_normalized,
         raw_data:company.display_name::STRING            AS company_or_agency,
         raw_data:description::STRING                     AS job_description,
@@ -190,9 +190,9 @@ USING (
 
         raw_data:MatchedObjectDescriptor.PositionTitle::STRING
                                                          AS job_title,
-        LOWER(REGEXP_REPLACE(
-            raw_data:MatchedObjectDescriptor.PositionTitle::STRING,
-            '[^a-zA-Z0-9 ]', ''))                        AS job_title_normalized,
+        TRIM(REGEXP_REPLACE(
+            LOWER(raw_data:MatchedObjectDescriptor.PositionTitle::STRING),
+            '[^a-zA-Z0-9]+', ' '))                       AS job_title_normalized,
         raw_data:MatchedObjectDescriptor.OrganizationName::STRING
                                                          AS company_or_agency,
         COALESCE(
