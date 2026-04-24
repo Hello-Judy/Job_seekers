@@ -164,3 +164,28 @@ def get_saved_jobs(user_email: str) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def unsave_job(user_email: str, job_id: str, source: str) -> bool:
+    try:
+        conn = _connect()
+        conn.execute(
+            "DELETE FROM user_saved_jobs WHERE user_email = ? AND job_id = ? AND source = ?",
+            (user_email, job_id, source),
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+def get_saved_job_ids(user_email: str) -> set[tuple[str, str]]:
+    """Return {(job_id, source)} for all saved jobs — used to render toggle state."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT job_id, source FROM user_saved_jobs WHERE user_email = ?",
+        (user_email,),
+    ).fetchall()
+    conn.close()
+    return {(r["job_id"], r["source"]) for r in rows}

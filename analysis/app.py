@@ -19,6 +19,7 @@ from analysis.db.user_db import (
     init_db, authenticate, register_user,
     get_preferences, save_preferences,
     save_job, get_saved_jobs,
+    unsave_job, get_saved_job_ids,
 )
 from analysis.db.snowflake_reader import (
     get_filter_options, get_cities_for_states,
@@ -39,7 +40,7 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────────────────────
 # Session defaults
 # ─────────────────────────────────────────────────────────────────────────────
-_defaults = {"user": None, "user_name": "", "page": "dashboard"}
+_defaults = {"user": None, "user_name": "", "page": "dashboard", "saved_ids": None}
 for k, v in _defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -68,15 +69,26 @@ def _loc(row: dict) -> str:
     return ", ".join(filter(None, [row.get("location_city"), row.get("location_state")])) or "Unknown location"
 
 
+def _ensure_saved_ids() -> None:
+    """Lazily populate saved_ids from DB on first access each session."""
+    if st.session_state.get("saved_ids") is None and st.session_state.user:
+        st.session_state.saved_ids = get_saved_job_ids(st.session_state.user)
+
+
 def job_card(row: dict, key_suffix: str = "") -> None:
     """Render a single job card inside the caller's column/container."""
     sector  = row.get("sector", "private")
     level   = row.get("experience_level", "unknown")
     remote  = row.get("remote_type", "unknown")
     url     = (row.get("apply_url") or "").strip()
+    job_id  = str(row.get("job_id", ""))
+    source  = str(row.get("source", ""))
 
     sc = SECTOR_COLOR.get(sector, "#546E7A")
     lc = LEVEL_COLOR.get(level, "#546E7A")
+
+    _ensure_saved_ids()
+    is_saved = (job_id, source) in (st.session_state.saved_ids or set())
 
     with st.container(border=True):
         # ── title row ────────────────────────────────────────────────────────
@@ -100,8 +112,8 @@ def job_card(row: dict, key_suffix: str = "") -> None:
         )
         st.caption(f"💰 {_salary(row)}   📅 {row.get('posted_date','')}")
 
-        # ── apply button ─────────────────────────────────────────────────────
-        btn_key = f"save_{row.get('job_id','')}{key_suffix}"
+        # ── apply + save/unsave buttons ───────────────────────────────────────
+        btn_key = f"save_{job_id}{key_suffix}"
         col_apply, col_save = st.columns([3, 1])
         with col_apply:
             if url:
@@ -110,9 +122,19 @@ def job_card(row: dict, key_suffix: str = "") -> None:
                 st.button("No link available", disabled=True,
                           use_container_width=True, key=f"nolink_{btn_key}")
         with col_save:
-            if st.button("📌 Save", key=btn_key, use_container_width=True):
-                save_job(st.session_state.user, row)
-                st.toast("Job saved!", icon="📌")
+            if is_saved:
+                if st.button("📌 Saved", key=btn_key, use_container_width=True, type="primary"):
+                    unsave_job(st.session_state.user, job_id, source)
+                    st.session_state.saved_ids.discard((job_id, source))
+                    st.toast("Removed from saved jobs.", icon="🗑️")
+                    st.rerun()
+            else:
+                if st.button("🔖 Save", key=btn_key, use_container_width=True):
+                    save_job(st.session_state.user, row)
+                    if st.session_state.saved_ids is not None:
+                        st.session_state.saved_ids.add((job_id, source))
+                    st.toast("Job saved!", icon="📌")
+                    st.rerun()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -194,6 +216,7 @@ def sidebar() -> None:
         if st.button("Sign Out", use_container_width=True):
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
+            st.session_state.saved_ids = None
             st.rerun()
 
 
@@ -500,17 +523,33 @@ def saved_jobs() -> None:
         st.info("You haven't saved any jobs yet.\n\nUse **🔍 Job Search** or the **Dashboard** feed to save jobs you're interested in.")
         return
 
+    st.caption(f"{len(jobs)} job{'s' if len(jobs) != 1 else ''} saved")
+
     for job in jobs:
         with st.container(border=True):
-            left, right = st.columns([4, 1])
+            left, mid, right = st.columns([4, 1, 1])
             with left:
                 st.markdown(f"**{job.get('job_title', 'Untitled')}**")
                 st.caption(f"{job.get('company', '')}  ·  {job.get('location', '')}")
                 st.caption(f"Saved on {str(job.get('saved_at',''))[:10]}")
-            with right:
+            with mid:
                 url = (job.get("apply_url") or "").strip()
                 if url:
                     st.link_button("Apply →", url, use_container_width=True)
+            with right:
+                rm_key = f"rm_{job.get('job_id','')}_{job.get('source','')}"
+                if st.button("✕ Remove", key=rm_key, use_container_width=True):
+                    unsave_job(
+                        st.session_state.user,
+                        job.get("job_id", ""),
+                        job.get("source", ""),
+                    )
+                    if st.session_state.saved_ids is not None:
+                        st.session_state.saved_ids.discard(
+                            (job.get("job_id", ""), job.get("source", ""))
+                        )
+                    st.toast("Job removed.", icon="🗑️")
+                    st.rerun()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
