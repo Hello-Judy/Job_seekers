@@ -429,15 +429,11 @@ def job_search() -> None:
             return
 
         # ── result header & sort ──────────────────────────────────────────────
-        top_l, top_r = st.columns([3, 1])
-        with top_l:
-            st.success(f"**{len(df)}** jobs found")
-        with top_r:
-            sort_by = st.selectbox(
-                "Sort",
-                ["Newest", "Oldest", "Salary ↓", "Salary ↑"],
-                label_visibility="collapsed",
-            )
+        st.success(f"**{len(df)}** jobs found")
+        sort_by = st.selectbox(
+            "Sort by",
+            ["Newest", "Oldest", "Salary ↓", "Salary ↑"],
+        )
 
         if sort_by == "Oldest":
             df = df.sort_values("posted_date", ascending=True)
@@ -446,11 +442,9 @@ def job_search() -> None:
         elif sort_by == "Salary ↑":
             df = df.sort_values("salary_min", ascending=True, na_position="last")
 
-        # ── two-column card grid ──────────────────────────────────────────────
-        left_col, right_col = st.columns(2)
+        # ── card list (single column inside rcol avoids 3-level nesting) ───────
         for i, (_, row) in enumerate(df.iterrows()):
-            with left_col if i % 2 == 0 else right_col:
-                job_card(row.to_dict(), key_suffix=f"_s{i}")
+            job_card(row.to_dict(), key_suffix=f"_s{i}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -16,7 +16,11 @@ import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).resolve().parent.parent / "users.db"
+# Allow override via env var so Docker can point to a mounted volume.
+# Default: <project_root>/data/users.db  (consistent regardless of cwd)
+_default = Path(__file__).resolve().parents[2] / "data" / "users.db"
+DB_PATH  = Path(os.environ.get("USER_DB_PATH", str(_default)))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 # ── connection ──────────────────────────────────────────────────────────────

@@ -82,5 +82,27 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  streamlit:
+    image: python:3.11-slim
+    working_dir: /app
+    environment:
+      USER_DB_PATH: /app/data/users.db
+    env_file:
+      - .env
+    volumes:
+      - ./analysis:/app/analysis
+      - ./src:/app/src
+      - streamlit-data:/app/data      # named volume → DB survives container restarts
+      - ./.env:/app/.env:ro
+    ports:
+      - "8501:8501"
+    command: >
+      sh -c "pip install --quiet streamlit pandas plotly
+             snowflake-connector-python python-dotenv pyarrow &&
+             streamlit run analysis/app.py
+             --server.port=8501 --server.address=0.0.0.0"
+    restart: always
+
 volumes:
   postgres-db-volume:
+  streamlit-data:
