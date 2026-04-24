@@ -275,7 +275,8 @@ USING (
             ELSE NULL
         END                                               AS salary_midpoint,
         ju.posted_date,
-        ju.close_date
+        ju.close_date,
+        ju.apply_url
     FROM SILVER.jobs_unified ju
     LEFT JOIN GOLD.dim_location dl
            ON dl.city    = ju.location_city
@@ -302,15 +303,16 @@ WHEN MATCHED THEN UPDATE SET
     salary_max       = src.salary_max,
     salary_midpoint  = src.salary_midpoint,
     posted_date      = src.posted_date,
-    close_date       = src.close_date
+    close_date       = src.close_date,
+    apply_url        = src.apply_url
 WHEN NOT MATCHED THEN INSERT (
     posting_key, date_key, location_key, company_key, category_key,
     source, sector, experience_level, is_entry_level, employment_type, remote_type,
-    salary_min, salary_max, salary_midpoint, posted_date, close_date
+    salary_min, salary_max, salary_midpoint, posted_date, close_date, apply_url
 ) VALUES (
     src.posting_key, src.date_key, src.location_key, src.company_key, src.category_key,
     src.source, src.sector, src.experience_level, src.is_entry_level, src.employment_type, src.remote_type,
-    src.salary_min, src.salary_max, src.salary_midpoint, src.posted_date, src.close_date
+    src.salary_min, src.salary_max, src.salary_midpoint, src.posted_date, src.close_date, src.apply_url
 )
 """
 

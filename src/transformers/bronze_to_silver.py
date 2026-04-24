@@ -111,6 +111,8 @@ USING (
         TO_DATE(raw_data:created::STRING)                AS posted_date,
         NULL                                             AS close_date,
 
+        raw_data:redirect_url::STRING                    AS apply_url,
+
         ingestion_timestamp                              AS ingestion_timestamp
     FROM BRONZE.raw_adzuna
 ) AS src
@@ -135,6 +137,7 @@ WHEN MATCHED THEN UPDATE SET
     remote_type          = src.remote_type,
     posted_date          = src.posted_date,
     close_date           = src.close_date,
+    apply_url            = src.apply_url,
     ingestion_timestamp  = src.ingestion_timestamp
 WHEN NOT MATCHED THEN INSERT (
     job_id, source, sector,
@@ -143,7 +146,7 @@ WHEN NOT MATCHED THEN INSERT (
     salary_min, salary_max, salary_is_predicted,
     job_category, experience_level, is_entry_level,
     employment_type, remote_type,
-    posted_date, close_date, ingestion_timestamp
+    posted_date, close_date, apply_url, ingestion_timestamp
 ) VALUES (
     src.job_id, src.source, src.sector,
     src.job_title, src.job_title_normalized, src.company_or_agency, src.job_description,
@@ -151,7 +154,7 @@ WHEN NOT MATCHED THEN INSERT (
     src.salary_min, src.salary_max, src.salary_is_predicted,
     src.job_category, src.experience_level, src.is_entry_level,
     src.employment_type, src.remote_type,
-    src.posted_date, src.close_date, src.ingestion_timestamp
+    src.posted_date, src.close_date, src.apply_url, src.ingestion_timestamp
 )
 """
 
@@ -270,6 +273,9 @@ USING (
         TO_DATE(raw_data:MatchedObjectDescriptor.ApplicationCloseDate::STRING)
                                                          AS close_date,
 
+        raw_data:MatchedObjectDescriptor.ApplyURI[0]::STRING
+                                                         AS apply_url,
+
         ingestion_timestamp
     FROM (
         -- Inner query precomputes derived scalars so the outer SELECT can reference
@@ -318,6 +324,7 @@ WHEN MATCHED THEN UPDATE SET
     remote_type          = src.remote_type,
     posted_date          = src.posted_date,
     close_date           = src.close_date,
+    apply_url            = src.apply_url,
     ingestion_timestamp  = src.ingestion_timestamp
 WHEN NOT MATCHED THEN INSERT (
     job_id, source, sector,
@@ -326,7 +333,7 @@ WHEN NOT MATCHED THEN INSERT (
     salary_min, salary_max, salary_is_predicted,
     job_category, experience_level, is_entry_level,
     employment_type, remote_type,
-    posted_date, close_date, ingestion_timestamp
+    posted_date, close_date, apply_url, ingestion_timestamp
 ) VALUES (
     src.job_id, src.source, src.sector,
     src.job_title, src.job_title_normalized, src.company_or_agency, src.job_description,
@@ -334,7 +341,7 @@ WHEN NOT MATCHED THEN INSERT (
     src.salary_min, src.salary_max, src.salary_is_predicted,
     src.job_category, src.experience_level, src.is_entry_level,
     src.employment_type, src.remote_type,
-    src.posted_date, src.close_date, src.ingestion_timestamp
+    src.posted_date, src.close_date, src.apply_url, src.ingestion_timestamp
 )
 """
 
