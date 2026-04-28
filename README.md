@@ -1,4 +1,4 @@
-# JobSeekers — A Data-Driven Lens on the U.S. Job Market
+# JobSeekers
 
 > **CSE 5114 Final Project, Spring 2026**
 > An end-to-end medallion lakehouse that ingests federal (USAJobs) and
