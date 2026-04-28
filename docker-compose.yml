@@ -19,6 +19,7 @@ x-airflow-common: &airflow-common
       snowflake-connector-python==3.12.3
       pandas==2.2.3
       pyarrow==17.0.0
+      openpyxl==3.1.5
       requests==2.32.3
       python-dotenv==1.0.1
   volumes:
@@ -27,6 +28,8 @@ x-airflow-common: &airflow-common
     - ./sql:/opt/airflow/sql
     - ./logs:/opt/airflow/logs
     - ./.env:/opt/airflow/.env:ro
+    - bls-work:/tmp/bls_qcew              # ~1.5 GB per-year scratch space for QCEW
+    - bls-work-oews:/tmp/bls_oews
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     postgres:
@@ -49,15 +52,22 @@ services:
 
   airflow-init:
     <<: *airflow-common
+    user: "0:0"                         # run init as root so chown below works
     entrypoint: /bin/bash
     command:
       - -c
       - |
-        airflow db migrate
-        airflow users create \
-          --username airflow --password airflow \
-          --firstname Air --lastname Flow \
-          --role Admin --email airflow@example.com || true
+        # Make BLS scratch dirs writable by the airflow user (UID 50000).
+        # Named volumes are root-owned on first creation; without this
+        # fix, the QCEW/OEWS extractors hit PermissionError.
+        mkdir -p /tmp/bls_qcew /tmp/bls_oews
+        chown -R 50000:0 /tmp/bls_qcew /tmp/bls_oews
+        # Hand off to the regular Airflow init.
+        su airflow -c "airflow db migrate && \
+          airflow users create \
+            --username airflow --password airflow \
+            --firstname Air --lastname Flow \
+            --role Admin --email airflow@example.com || true"
 
   airflow-webserver:
     <<: *airflow-common
@@ -103,3 +113,5 @@ services:
 volumes:
   postgres-db-volume:
   streamlit-data:
+  bls-work:                                # shared between scheduler and webserver
+  bls-work-oews:

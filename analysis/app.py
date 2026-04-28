@@ -422,8 +422,18 @@ def _salary(row: dict) -> str:
 
 
 def _loc(row: dict) -> str:
-    return ", ".join(filter(None, [row.get("location_city"), row.get("location_state")])) \
-        or "Unknown location"
+    # Guard against pandas' float-NaN sentinel: filter(None, ...) drops
+    # Python None but keeps NaN (it's a truthy float), and str.join then
+    # blows up. Coerce every part to str and drop blanks.
+    parts = []
+    for key in ("location_city", "location_state"):
+        v = row.get(key)
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s and s.lower() != "nan":
+            parts.append(s)
+    return ", ".join(parts) or "Unknown location"
 
 
 def _ensure_saved_ids() -> None:
@@ -665,6 +675,7 @@ def sidebar() -> None:
         pages = {
             "dashboard":   "🏠  Dashboard",
             "search":      "🔍  Job Search",
+            "analytics":   "📊  Analytics",
             "preferences": "⚙️  Preferences",
             "saved":       "📌  Saved Jobs",
         }
@@ -1134,6 +1145,9 @@ def main() -> None:
         dashboard()
     elif page == "search":
         job_search()
+    elif page == "analytics":
+        from analysis.analytics_page import render_analytics_page
+        render_analytics_page()
     elif page == "preferences":
         preferences()
     elif page == "saved":

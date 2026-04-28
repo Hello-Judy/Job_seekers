@@ -3,6 +3,7 @@ python-dotenv==1.0.1
 requests==2.32.3
 pandas==2.2.3
 pyarrow==17.0.0
+openpyxl==3.1.5         # used by BLS OEWS loader to convert annual XLSX → CSV
 
 # Snowflake
 snowflake-connector-python==3.12.3
