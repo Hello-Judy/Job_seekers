@@ -120,9 +120,6 @@ SELECT
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-See [docs/BLS_INTEGRATION.md](docs/BLS_INTEGRATION.md) for the BLS layer
-design and [docs/DAY_2_CHECKLIST.md](docs/DAY_2_CHECKLIST.md) for the
-deployment runbook.
 
 ---
 
@@ -270,20 +267,9 @@ Future column reorderings by BLS will not require code changes.
 
 ---
 
-## Related Work
 
-Architecture influenced by:
-- [`kazarmax/adzuna_etl_airflow`](https://github.com/kazarmax/adzuna_etl_airflow) — early reference for the Adzuna ingestion pattern.
-- [`abigailhaddad/usajobs_historical`](https://github.com/abigailhaddad/usajobs_historical) — historical USAJobs data source.
-- [`astronomer/etl-elt-airflow-snowflake`](https://github.com/astronomer/etl-elt-airflow-snowflake) — Airflow + Snowflake reference architecture.
-
-The BLS integration, SOC resolver, and Dataset-driven multi-DAG layout are
-project-specific designs.
-
----
 
 ## Team
 
 - **Xuyang Zheng** — project owner.
-  Original partner Yuyang Wu withdrew from the course mid-semester; the
-  full pipeline, BLS integration, and dashboard work were completed solo.
+  Original partner Yuyang Wu withdrew from the course mid-semester; BLS integration, and dashboard work were completed solo.
