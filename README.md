@@ -15,7 +15,7 @@
 | **Total rows materialized** | ~1.5 billion across Bronze / Silver / Gold |
 | **Largest single table** | `GOLD.fact_qcew` — **696 million rows, 12.34 GB** |
 | **Snowflake compressed storage** | ~30 GB |
-| **Logical (uncompressed) data volume** | 100+ GB |
+| **Logical (uncompressed) data volume** | 128+ GB |
 | **Time coverage** | 1990 Q1 – 2024 Q4 (35 years) |
 | **Data sources** | 3 (Adzuna, USAJobs, BLS) |
 | **DAGs** | 8, Dataset-driven dependencies |
